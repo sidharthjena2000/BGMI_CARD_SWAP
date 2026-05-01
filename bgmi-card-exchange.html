@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BGMI Card Exchange</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@600;700;900&family=Bebas+Neue&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --gold:#FFD700;--gold2:#B8860B;--gold-glow:rgba(255,215,0,.35);
+  --silver:#C8D0DC;--silver2:#778899;--silver-glow:rgba(200,208,220,.3);
+  --blue:#00D4FF;--blue2:#005580;--blue-glow:rgba(0,212,255,.3);
+  --red:#FF3A3A;--green:#00FF88;--orange:#FF6B00;
+  --bg:#05080f;--bg2:#080c15;--panel:#0c1220;--panel2:#101828;--panel3:#141e2e;
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.12);
+  --text:#dce8f5;--dim:#4a5a70;--dim2:#6a7a90;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;overflow-x:hidden;min-height:100vh}
+#bg-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4}
+
+/* ── SCREENS ── */
+.screen{display:none;position:relative;z-index:1;min-height:100vh}
+.screen.active{display:flex;flex-direction:column}
+
+/* ── FULL PAGE LOADER ── */
+#screen-loading{align-items:center;justify-content:center;background:var(--bg)}
+.loader-wrap{text-align:center}
+.loader-emblem{font-size:56px;animation:spin 2s linear infinite;display:inline-block}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.loader-text{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:4px;
+  color:var(--dim2);text-transform:uppercase;margin-top:16px}
+
+/* ── AUTH SCREEN ── */
+#screen-auth{
+  align-items:center;justify-content:center;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%,rgba(255,180,0,.08) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%,rgba(0,150,255,.06) 0%,transparent 60%);
+  padding:20px;min-height:100vh;
+}
+.auth-hero{text-align:center;margin-bottom:28px;animation:fadeDown .8s ease both}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+.sponsor-strip{
+  display:inline-flex;align-items:center;gap:8px;
+  background:linear-gradient(90deg,rgba(255,107,0,.15),rgba(255,215,0,.1),rgba(255,107,0,.15));
+  border:1px solid rgba(255,107,0,.3);border-radius:2px;
+  padding:5px 18px;margin-bottom:14px;
+  font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--orange);
+}
+.sponsor-strip .sname{color:var(--gold);font-weight:700;letter-spacing:2px}
+.hero-emblem{
+  width:80px;height:80px;margin:0 auto 12px;
+  background:radial-gradient(circle,rgba(255,215,0,.15),transparent 70%);
+  border:2px solid rgba(255,215,0,.3);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:40px;
+  box-shadow:0 0 40px rgba(255,215,0,.15);animation:heroGlow 3s ease-in-out infinite;
+}
+@keyframes heroGlow{0%,100%{box-shadow:0 0 30px rgba(255,215,0,.15)}50%{box-shadow:0 0 55px rgba(255,215,0,.3)}}
+.hero-title{
+  font-family:'Bebas Neue',sans-serif;font-size:clamp(42px,10vw,76px);
+  line-height:.9;letter-spacing:4px;
+  background:linear-gradient(180deg,#fff 0%,var(--gold) 50%,var(--orange) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:5px;
+}
+.hero-sub{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:6px;text-transform:uppercase;color:var(--dim2);margin-bottom:3px}
+.hero-tagline{font-size:13px;color:var(--dim2);letter-spacing:1px}
+.hero-divider{display:flex;align-items:center;gap:12px;max-width:300px;margin:12px auto 0}
+.hero-divider::before,.hero-divider::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,215,0,.35),transparent)}
+.hero-divider span{color:var(--gold);font-size:12px}
+
+.auth-card{
+  background:linear-gradient(145deg,rgba(12,18,32,.97),rgba(8,12,21,.97));
+  border:1px solid var(--border2);border-radius:10px;padding:28px 32px;
+  width:100%;max-width:420px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04);
+  animation:fadeUp .8s .2s ease both;position:relative;overflow:hidden;
+}
+.auth-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,transparent,var(--gold),var(--orange),var(--gold),transparent)}
+.auth-tabs{display:flex;gap:4px;margin-bottom:22px;background:rgba(0,0,0,.3);border-radius:6px;padding:4px}
+.auth-tab{flex:1;font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;
+  text-transform:uppercase;padding:9px;border:none;background:transparent;
+  color:var(--dim2);cursor:pointer;border-radius:4px;transition:all .2s}
+.auth-tab.active{background:rgba(255,215,0,.12);color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,.1)}
+.auth-form{display:none}.auth-form.active{display:block}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim2);margin-bottom:6px}
+.form-input{width:100%;background:rgba(0,0,0,.4);border:1.5px solid var(--border2);
+  border-radius:6px;padding:11px 14px;color:var(--text);font-family:'Rajdhani',sans-serif;
+  font-size:15px;font-weight:600;transition:border-color .2s,box-shadow .2s;outline:none}
+.form-input:focus{border-color:rgba(255,215,0,.5);box-shadow:0 0 0 3px rgba(255,215,0,.08)}
+.form-input::placeholder{color:var(--dim);font-weight:500}
+.form-hint{font-size:11px;color:var(--dim);margin-top:5px;letter-spacing:.5px}
+.pw-wrap{position:relative}
+.pw-wrap .form-input{padding-right:44px}
+.pw-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--dim2);cursor:pointer;font-size:15px;
+  line-height:1;transition:color .2s;padding:4px}
+.pw-eye:hover{color:var(--text)}
+.auth-btn{
+  width:100%;font-family:'Orbitron',monospace;font-size:12px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;padding:13px;border:none;cursor:pointer;
+  border-radius:5px;transition:all .3s;margin-top:6px;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,var(--gold2),var(--gold),var(--gold2));color:#000;
+  clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+.auth-btn::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent);
+  transform:translateX(-100%);transition:transform .5s}
+.auth-btn:hover::after{transform:translateX(100%)}
+.auth-btn:hover{filter:brightness(1.08)}
+.auth-btn:disabled{opacity:.45;cursor:not-allowed}
+.auth-error{background:rgba(255,58,58,.1);border:1px solid rgba(255,58,58,.3);
+  border-radius:5px;padding:9px 13px;font-size:12px;color:var(--red);
+  margin-top:10px;display:none;letter-spacing:.5px}
+.auth-error.show{display:block}
+.auth-success{background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25);
+  border-radius:5px;padding:9px 13px;font-size:12px;color:var(--green);
+  margin-top:10px;display:none;letter-spacing:.5px}
+.auth-success.show{display:block}
+.auth-footer{text-align:center;margin-top:18px;font-size:11px;color:var(--dim);letter-spacing:1px}
+.auth-footer span{color:var(--gold)}
+
+/* ── NAV ── */
+nav{position:sticky;top:0;z-index:50;background:rgba(5,8,15,.94);
+  backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
+.nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;
+  height:56px;padding:0 16px;gap:0}
+.nav-logo{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;
+  background:linear-gradient(90deg,var(--gold),var(--orange));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-right:24px;white-space:nowrap}
+.nav-tabs{display:flex;gap:2px;flex:1}
+.nav-tab{padding:0 18px;height:56px;border:none;background:transparent;color:var(--dim);
+  font-family:'Orbitron',monospace;font-size:10px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;cursor:pointer;transition:all .2s;position:relative;white-space:nowrap}
+.nav-tab::after{content:'';position:absolute;bottom:0;left:50%;right:50%;height:2px;transition:all .3s}
+.nav-tab:hover{color:var(--text)}
+.nav-tab.active{color:var(--gold)}
+.nav-tab.active::after{left:12px;right:12px;background:var(--gold)}
+.nav-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+.nav-uid{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:1px;
+  padding:5px 12px;border-radius:3px;background:rgba(255,215,0,.08);
+  border:1px solid rgba(255,215,0,.2);color:var(--gold);max-width:160px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-live{display:flex;align-items:center;gap:5px;font-size:10px;letter-spacing:1px;color:var(--green)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);
+  animation:livepulse 1.5s ease-in-out infinite}
+@keyframes livepulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,255,136,.5)}
+  50%{opacity:.7;box-shadow:0 0 0 5px rgba(0,255,136,0)}}
+.logout-btn{font-size:18px;background:none;border:none;color:var(--dim);cursor:pointer;
+  transition:color .2s;padding:4px}
+.logout-btn:hover{color:var(--red)}
+
+/* ── PAGES ── */
+.page{display:none;max-width:1200px;margin:0 auto;padding:24px 16px 80px;position:relative;z-index:1}
+.page.active{display:block}
+
+/* ── UID BANNER ── */
+.uid-banner{
+  background:linear-gradient(135deg,rgba(12,18,32,.9),rgba(20,30,50,.9));
+  border:1px solid rgba(255,215,0,.2);border-radius:10px;
+  padding:18px 22px;margin-bottom:22px;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:12px;position:relative;overflow:hidden;
+}
+.uid-banner::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),var(--orange),var(--gold),transparent)}
+.uid-banner-left h2{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:3px;
+  color:var(--dim2);text-transform:uppercase;margin-bottom:5px}
+.uid-value{font-family:'Orbitron',monospace;font-size:20px;font-weight:900;color:var(--gold);letter-spacing:3px}
+.uid-email{font-size:12px;color:var(--dim2);margin-top:3px;letter-spacing:.5px}
+.daily-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
+  border-radius:20px;font-size:11px;letter-spacing:1px;font-family:'Orbitron',monospace}
+.daily-pill.ok{background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25);color:var(--green)}
+.daily-pill.used{background:rgba(255,58,58,.08);border:1px solid rgba(255,58,58,.25);color:var(--red)}
+.sponsor-mention{font-size:10px;color:var(--dim);letter-spacing:1px;margin-top:4px}
+.sponsor-mention span{color:var(--orange)}
+
+/* ── PAGE HEADER ── */
+.page-header{text-align:center;padding:16px 0 24px}
+.page-badge{display:inline-block;border:1px solid rgba(255,215,0,.25);border-radius:2px;
+  padding:4px 14px;font-size:10px;letter-spacing:4px;color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.page-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(26px,5vw,48px);letter-spacing:4px;
+  background:linear-gradient(180deg,#fff 0%,var(--gold) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.page-sub{color:var(--dim2);font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-top:4px}
+.hdivider{display:flex;align-items:center;gap:12px;margin:12px auto 0;max-width:360px}
+.hdivider::before,.hdivider::after{content:'';flex:1;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,215,0,.3),transparent)}
+.hdivider span{color:var(--gold);font-size:12px}
+
+/* ── TYPE TABS ── */
+.type-tabs{display:flex;justify-content:center;gap:10px;margin-bottom:18px}
+.type-tab{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:2px;
+  padding:9px 22px;border:2px solid;border-radius:3px;cursor:pointer;background:var(--panel);
+  transition:all .2s;text-transform:uppercase;
+  clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)}
+.type-tab.gold{color:var(--gold);border-color:rgba(255,215,0,.2)}
+.type-tab.gold.active,.type-tab.gold:hover{background:rgba(255,215,0,.1);border-color:var(--gold);box-shadow:0 0 16px var(--gold-glow)}
+.type-tab.silver{color:var(--silver);border-color:rgba(200,208,220,.15)}
+.type-tab.silver.active,.type-tab.silver:hover{background:rgba(200,208,220,.07);border-color:var(--silver);box-shadow:0 0 16px var(--silver-glow)}
+.type-tab.blue{color:var(--blue);border-color:rgba(0,212,255,.15)}
+.type-tab.blue.active,.type-tab.blue:hover{background:rgba(0,212,255,.07);border-color:var(--blue);box-shadow:0 0 16px var(--blue-glow)}
+.type-content{display:none}.type-content.active{display:block}
+
+/* ── SELECT LAYOUT ── */
+.select-layout{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:620px){.select-layout{grid-template-columns:1fr}}
+.sel-panel{background:var(--panel);border-radius:8px;border:1px solid var(--border);
+  padding:16px;position:relative;overflow:hidden}
+.sel-panel::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.gold-acc::before{background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.silver-acc::before{background:linear-gradient(90deg,transparent,var(--silver),transparent)}
+.blue-acc::before{background:linear-gradient(90deg,transparent,var(--blue),transparent)}
+.sel-title{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;
+  margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sel-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* ── CARD GRID ── */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px}
+.card-item{border-radius:6px;border:2px solid transparent;cursor:pointer;transition:all .2s;
+  position:relative;overflow:hidden;aspect-ratio:3/4;display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-end;user-select:none}
+.card-item:hover{transform:translateY(-3px)}
+.card-item.selected{transform:translateY(-4px) scale(1.05)}
+.card-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.card-icon{font-size:30px;position:relative}
+.card-name{position:relative;width:100%;text-align:center;font-size:9px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;padding:5px 3px 7px;background:rgba(0,0,0,.65)}
+.card-check{position:absolute;top:4px;right:4px;width:16px;height:16px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;
+  opacity:0;transition:opacity .2s}
+.card-item.selected .card-check{opacity:1}
+.gold-card{border-color:rgba(255,215,0,.12)}.gold-card .card-bg{background:linear-gradient(145deg,#100c00,#1c1400,#100c00)}
+.gold-card .card-icon,.gold-card .card-name{color:var(--gold)}
+.gold-card.selected{border-color:var(--gold);box-shadow:0 0 20px var(--gold-glow)}
+.gold-card .card-check{background:var(--gold);color:#000}
+.silver-card{border-color:rgba(200,208,220,.1)}.silver-card .card-bg{background:linear-gradient(145deg,#0e1012,#161a1e,#0e1012)}
+.silver-card .card-icon,.silver-card .card-name{color:var(--silver)}
+.silver-card.selected{border-color:var(--silver);box-shadow:0 0 20px var(--silver-glow)}
+.silver-card .card-check{background:var(--silver);color:#000}
+.blue-card{border-color:rgba(0,212,255,.1)}.blue-card .card-bg{background:linear-gradient(145deg,#000e16,#001520,#000e16)}
+.blue-card .card-icon,.blue-card .card-name{color:var(--blue)}
+.blue-card.selected{border-color:var(--blue);box-shadow:0 0 20px var(--blue-glow)}
+.blue-card .card-check{background:var(--blue);color:#000}
+
+/* ── GIVE CONFIG ── */
+.give-config{background:var(--panel);border-radius:8px;border:1px solid var(--border);padding:16px;margin-top:14px}
+.give-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.give-lbl{color:var(--dim2);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.qty-btn{width:34px;height:34px;border-radius:3px;border:1.5px solid rgba(255,255,255,.1);
+  background:var(--panel2);color:var(--dim);font-family:'Orbitron',monospace;font-size:13px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.qty-btn.active{background:rgba(255,255,255,.06)}
+.slots-row{display:flex;gap:10px;flex-wrap:wrap}
+.give-slot{width:76px;height:100px;border-radius:6px;border:2px dashed rgba(255,255,255,.1);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:all .3s;background:rgba(0,0,0,.2);position:relative}
+.give-slot.filled{border-style:solid;background:var(--panel2)}
+.give-slot .si{font-size:22px}
+.give-slot .sn{font-size:8px;letter-spacing:.5px;text-transform:uppercase;margin-top:4px;text-align:center;padding:0 3px}
+.give-slot .sr{position:absolute;top:3px;right:3px;width:15px;height:15px;border-radius:50%;
+  background:rgba(255,50,50,.7);color:#fff;font-size:8px;display:none;
+  align-items:center;justify-content:center;cursor:pointer;font-weight:900}
+.give-slot.filled:hover .sr{display:flex}
+.summary-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;
+  padding:11px 14px;background:rgba(0,0,0,.3);border-radius:6px;border:1px solid var(--border)}
+.sum-chip{font-size:12px;color:var(--dim2);display:flex;align-items:center;gap:6px}
+.sum-chip strong{font-family:'Orbitron',monospace;font-size:13px}
+.sum-arrow{color:rgba(255,255,255,.18);font-size:18px}
+.post-btn{font-family:'Orbitron',monospace;font-size:12px;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;padding:13px 38px;border:none;cursor:pointer;
+  clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);
+  transition:all .3s;position:relative;overflow:hidden}
+.post-btn::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);
+  transform:translateX(-100%);transition:transform .5s}
+.post-btn:hover::after{transform:translateX(100%)}
+.post-btn:hover{transform:scale(1.03)}
+.post-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.gold-btn{background:linear-gradient(135deg,var(--gold2),var(--gold),var(--gold2));color:#000}
+.silver-btn{background:linear-gradient(135deg,var(--silver2),var(--silver),var(--silver2));color:#000}
+.blue-btn{background:linear-gradient(135deg,var(--blue2),var(--blue),var(--blue2));color:#000}
+.post-row{display:flex;justify-content:center;margin-top:20px}
+
+/* ── BOARD ── */
+.board-filters{display:flex;justify-content:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-btn{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2px;padding:7px 14px;
+  border-radius:3px;border:1.5px solid rgba(255,255,255,.1);background:var(--panel);
+  color:var(--dim);cursor:pointer;transition:all .2s;text-transform:uppercase}
+.filter-btn:hover,.filter-btn.active{background:rgba(255,255,255,.06);color:var(--text);border-color:rgba(255,255,255,.3)}
+.filter-btn.f-gold.active{border-color:var(--gold);color:var(--gold)}
+.filter-btn.f-silver.active{border-color:var(--silver);color:var(--silver)}
+.filter-btn.f-blue.active{border-color:var(--blue);color:var(--blue)}
+.board-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.board-count{font-size:13px;color:var(--dim2)}
+.refresh-btn{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2px;padding:7px 14px;
+  border-radius:3px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--dim);
+  cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px}
+.refresh-btn:hover{color:var(--text);border-color:rgba(255,255,255,.3)}
+@keyframes spinr{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.spin-me{animation:spinr .6s linear}
+.board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(276px,1fr));gap:14px}
+.board-empty{text-align:center;padding:60px 20px;color:var(--dim);grid-column:1/-1}
+.board-empty .bei{font-size:46px;margin-bottom:12px;opacity:.4}
+.listing{background:var(--panel);border-radius:8px;border:1px solid var(--border);overflow:hidden;transition:all .2s}
+.listing:hover{border-color:rgba(255,255,255,.14);transform:translateY(-2px)}
+.listing-top{height:3px}
+.listing-body{padding:15px}
+.listing-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.listing-type-lbl{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase}
+.lbadge{padding:3px 10px;border-radius:2px;font-size:9px;font-family:'Orbitron',monospace;letter-spacing:1px}
+.listing-cards{display:flex;align-items:center;gap:7px;margin:10px 0;flex-wrap:wrap}
+.mini-card{display:flex;flex-direction:column;align-items:center;gap:2px;
+  background:var(--panel2);border-radius:4px;padding:7px 5px;min-width:48px;border:1px solid var(--border)}
+.mini-card .mi{font-size:18px}
+.mini-card .mn{font-size:7px;letter-spacing:.5px;text-transform:uppercase;text-align:center}
+.swap-arr{font-size:18px;color:rgba(255,255,255,.18)}
+.listing-meta{font-size:11px;color:var(--dim2);margin-bottom:6px}
+.listing-poster{font-size:10px;color:var(--dim2);margin-bottom:6px}
+.listing-poster strong{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1px}
+.listing-footer{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:4px}
+.listing-id{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1px;padding:3px 8px;
+  border-radius:2px;background:rgba(0,0,0,.4);border:1px solid var(--border)}
+.listing-time{font-size:10px;color:var(--dim)}
+.accept-btn{width:100%;font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;
+  text-transform:uppercase;padding:10px;border:none;cursor:pointer;border-radius:4px;transition:all .2s;font-weight:700}
+.accept-btn:hover{filter:brightness(1.12);transform:scale(1.01)}
+.own-listing-badge{width:100%;text-align:center;padding:8px;font-family:'Orbitron',monospace;
+  font-size:9px;letter-spacing:2px;color:var(--dim);border:1px solid var(--border);
+  border-radius:4px;text-transform:uppercase;background:rgba(0,0,0,.2)}
+.gold-listing .listing-top{background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.gold-listing .listing-type-lbl{color:var(--gold)}.gold-listing .lbadge{background:rgba(255,215,0,.1);color:var(--gold)}
+.gold-listing .mini-card .mn{color:var(--gold)}.gold-listing .listing-id{color:var(--gold);border-color:rgba(255,215,0,.2)}
+.gold-listing .accept-btn{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#000}
+.silver-listing .listing-top{background:linear-gradient(90deg,transparent,var(--silver),transparent)}
+.silver-listing .listing-type-lbl{color:var(--silver)}.silver-listing .lbadge{background:rgba(200,208,220,.08);color:var(--silver)}
+.silver-listing .mini-card .mn{color:var(--silver)}.silver-listing .listing-id{color:var(--silver);border-color:rgba(200,208,220,.2)}
+.silver-listing .accept-btn{background:linear-gradient(135deg,var(--silver2),var(--silver));color:#000}
+.blue-listing .listing-top{background:linear-gradient(90deg,transparent,var(--blue),transparent)}
+.blue-listing .listing-type-lbl{color:var(--blue)}.blue-listing .lbadge{background:rgba(0,212,255,.08);color:var(--blue)}
+.blue-listing .mini-card .mn{color:var(--blue)}.blue-listing .listing-id{color:var(--blue);border-color:rgba(0,212,255,.2)}
+.blue-listing .accept-btn{background:linear-gradient(135deg,var(--blue2),var(--blue));color:#000}
+
+/* ── MODALS ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(10px);
+  z-index:200;display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:all}
+.modal{background:linear-gradient(145deg,var(--panel),var(--bg2));border-radius:10px;
+  border:1px solid rgba(255,255,255,.1);padding:28px 32px;max-width:400px;width:92%;
+  position:relative;overflow:hidden;transform:translateY(20px) scale(.94);transition:all .3s}
+.overlay.show .modal{transform:translateY(0) scale(1)}
+.modal-bar{position:absolute;top:0;left:0;right:0;height:3px}
+.modal-x{position:absolute;top:12px;right:14px;background:none;border:none;color:var(--dim);
+  font-size:18px;cursor:pointer;line-height:1;transition:color .2s}
+.modal-x:hover{color:var(--text)}
+.modal-icon{font-size:44px;text-align:center;margin-bottom:12px}
+.modal-title{font-family:'Orbitron',monospace;font-size:14px;font-weight:700;letter-spacing:2px;text-align:center;margin-bottom:8px}
+.modal-sub{color:var(--dim2);font-size:13px;text-align:center;line-height:1.6;margin-bottom:16px}
+.exid-box{background:rgba(0,0,0,.5);border-radius:8px;border:2px solid;padding:14px 20px;text-align:center;margin:12px 0}
+.exid-lbl{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--dim2);margin-bottom:6px}
+.exid-val{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;letter-spacing:4px}
+.exid-copy{margin-top:6px;font-size:11px;color:var(--dim);cursor:pointer;
+  display:inline-flex;align-items:center;gap:4px;transition:color .2s}
+.exid-copy:hover{color:var(--text)}
+.big-id{font-family:'Orbitron',monospace;font-size:24px;font-weight:900;letter-spacing:4px;
+  display:block;margin:10px 0;text-align:center}
+.modal-btn{width:100%;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;padding:12px;border-radius:4px;border:none;cursor:pointer;transition:all .2s}
+.modal-btn+.modal-btn{margin-top:8px}
+.modal-btn-out{background:transparent;border:1.5px solid rgba(255,255,255,.18);color:var(--text)}
+.modal-btn-out:hover{border-color:rgba(255,255,255,.45);background:rgba(255,255,255,.05)}
+.daily-warn{background:rgba(255,58,58,.1);border:1px solid rgba(255,58,58,.3);
+  border-radius:6px;padding:10px 13px;text-align:center;font-size:12px;color:var(--red);letter-spacing:.5px;margin:8px 0}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;right:24px;z-index:999;background:var(--panel3);
+  border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:11px 16px;
+  font-size:13px;display:flex;align-items:center;gap:8px;
+  transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none;max-width:300px}
+.toast.show{transform:translateY(0);opacity:1}
+
+/* ── SPONSOR FOOTER ── */
+.sponsor-footer{text-align:center;padding:14px 20px;border-top:1px solid var(--border);
+  font-size:11px;color:var(--dim);letter-spacing:1px;background:rgba(0,0,0,.3)}
+.sponsor-footer .sn{color:var(--orange);font-weight:700}
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+
+<!-- ══ LOADING SCREEN ══ -->
+<div class="screen active" id="screen-loading">
+  <div class="loader-wrap">
+    <div class="loader-emblem">⚔️</div>
+    <div class="loader-text">Loading BGMI Swap...</div>
+  </div>
+</div>
+
+<!-- ══ AUTH SCREEN ══ -->
+<div class="screen" id="screen-auth">
+  <div class="auth-hero">
+    <div class="sponsor-strip">Sponsored by &nbsp;<span class="sname">VIJAY KUMAR</span></div>
+    <div class="hero-emblem">⚔️</div>
+    <div class="hero-title">BGMI<br>SWAP</div>
+    <div class="hero-sub">Battlegrounds Card Exchange</div>
+    <div class="hero-tagline">Trade smarter. Dominate the battleground.</div>
+    <div class="hero-divider"><span>◆</span></div>
+  </div>
+
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup')">Sign Up</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="auth-form active" id="form-login">
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input class="form-input" id="login-email" type="email" placeholder="player@bgmi.com" autocomplete="email"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="pw-wrap">
+          <input class="form-input" id="login-pw" type="password" placeholder="Enter your password" autocomplete="current-password"/>
+          <button class="pw-eye" type="button" onclick="togglePw('login-pw',this)" tabindex="-1">👁</button>
+        </div>
+      </div>
+      <div id="login-error" class="auth-error"></div>
+      <button class="auth-btn" id="login-btn" onclick="doLogin()">Enter Battleground →</button>
+    </div>
+
+    <!-- SIGNUP -->
+    <div class="auth-form" id="form-signup">
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input class="form-input" id="signup-email" type="email" placeholder="player@bgmi.com" autocomplete="email"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="pw-wrap">
+          <input class="form-input" id="signup-pw" type="password" placeholder="Min 6 characters" autocomplete="new-password"/>
+          <button class="pw-eye" type="button" onclick="togglePw('signup-pw',this)" tabindex="-1">👁</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm Password</label>
+        <div class="pw-wrap">
+          <input class="form-input" id="signup-pw2" type="password" placeholder="Re-enter password" autocomplete="new-password"/>
+          <button class="pw-eye" type="button" onclick="togglePw('signup-pw2',this)" tabindex="-1">👁</button>
+        </div>
+        <div class="form-hint">A unique Exchange ID will be generated for your account</div>
+      </div>
+      <div id="signup-error" class="auth-error"></div>
+      <div id="signup-success" class="auth-success"></div>
+      <button class="auth-btn" id="signup-btn" onclick="doSignup()">Create Account →</button>
+    </div>
+  </div>
+  <div class="auth-footer">Powered by <span>BGMI SWAP</span> · Sponsored by <span>Vijay Kumar</span></div>
+</div>
+
+<!-- ══ APP SCREEN ══ -->
+<div class="screen" id="screen-app">
+  <nav>
+    <div class="nav-inner">
+      <div class="nav-logo">BGMI SWAP</div>
+      <div class="nav-tabs">
+        <button class="nav-tab active" onclick="showPage('exchange')">Exchange</button>
+        <button class="nav-tab" onclick="showPage('board')">Live Board</button>
+      </div>
+      <div class="nav-right">
+        <div class="nav-live"><span class="live-dot"></span>LIVE</div>
+        <div class="nav-uid" id="nav-uid-display">—</div>
+        <button class="logout-btn" onclick="doLogout()" title="Logout">⏻</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- PAGE: EXCHANGE -->
+  <div class="page active" id="page-exchange">
+    <div class="page-header">
+      <div class="page-badge">⚔ Card Exchange</div>
+      <div class="page-title">Create Exchange</div>
+      <div class="page-sub">Select want · select give · post to board</div>
+      <div class="hdivider"><span>◆</span></div>
+    </div>
+    <div class="uid-banner">
+      <div class="uid-banner-left">
+        <h2>Your Exchange ID</h2>
+        <div class="uid-value" id="uid-display">—</div>
+        <div class="uid-email" id="uid-email-display">—</div>
+      </div>
+      <div style="text-align:right">
+        <div class="daily-pill ok" id="daily-pill">✓ Redeem Available</div>
+        <div class="sponsor-mention">Sponsored by <span>Vijay Kumar</span></div>
+      </div>
+    </div>
+
+    <div class="type-tabs">
+      <button class="type-tab gold active" onclick="switchType('gold')">🥇 Gold</button>
+      <button class="type-tab silver" onclick="switchType('silver')">🥈 Silver</button>
+      <button class="type-tab blue" onclick="switchType('blue')">💠 Blue</button>
+    </div>
+
+    <!-- GOLD -->
+    <div class="type-content active" id="tc-gold">
+      <div class="select-layout">
+        <div class="sel-panel gold-acc">
+          <div class="sel-title" style="color:var(--gold)"><span class="sel-dot" style="background:var(--gold);box-shadow:0 0 5px var(--gold)"></span>Card I Want (pick 1)</div>
+          <div class="card-grid" id="want-gold"></div>
+        </div>
+        <div class="sel-panel gold-acc">
+          <div class="sel-title" style="color:var(--gold)"><span class="sel-dot" style="background:var(--gold);box-shadow:0 0 5px var(--gold)"></span>Cards I'll Give (1–3)</div>
+          <div class="card-grid" id="give-gold"></div>
+        </div>
+      </div>
+      <div class="give-config">
+        <div class="give-row">
+          <span class="give-lbl">Cards to give:</span>
+          <button class="qty-btn active" id="qb-gold-1" onclick="setQty('gold',1)" style="color:var(--gold)">1</button>
+          <button class="qty-btn" id="qb-gold-2" onclick="setQty('gold',2)" style="color:var(--gold)">2</button>
+          <button class="qty-btn" id="qb-gold-3" onclick="setQty('gold',3)" style="color:var(--gold)">3</button>
+        </div>
+        <div class="slots-row" id="slots-gold"></div>
+        <div class="summary-row">
+          <div class="sum-chip">Give: <strong id="sc-give-gold" style="color:var(--gold)">—</strong></div>
+          <div class="sum-arrow">→</div>
+          <div class="sum-chip">Get: <strong id="sc-want-gold" style="color:var(--gold)">—</strong></div>
+        </div>
+      </div>
+      <div class="post-row"><button class="post-btn gold-btn" id="pb-gold" disabled onclick="doPost('gold')">⚡ Post to Board</button></div>
+    </div>
+
+    <!-- SILVER -->
+    <div class="type-content" id="tc-silver">
+      <div class="select-layout">
+        <div class="sel-panel silver-acc">
+          <div class="sel-title" style="color:var(--silver)"><span class="sel-dot" style="background:var(--silver);box-shadow:0 0 5px var(--silver)"></span>Card I Want (pick 1)</div>
+          <div class="card-grid" id="want-silver"></div>
+        </div>
+        <div class="sel-panel silver-acc">
+          <div class="sel-title" style="color:var(--silver)"><span class="sel-dot" style="background:var(--silver);box-shadow:0 0 5px var(--silver)"></span>Cards I'll Give (1–3)</div>
+          <div class="card-grid" id="give-silver"></div>
+        </div>
+      </div>
+      <div class="give-config">
+        <div class="give-row">
+          <span class="give-lbl">Cards to give:</span>
+          <button class="qty-btn active" id="qb-silver-1" onclick="setQty('silver',1)" style="color:var(--silver)">1</button>
+          <button class="qty-btn" id="qb-silver-2" onclick="setQty('silver',2)" style="color:var(--silver)">2</button>
+          <button class="qty-btn" id="qb-silver-3" onclick="setQty('silver',3)" style="color:var(--silver)">3</button>
+        </div>
+        <div class="slots-row" id="slots-silver"></div>
+        <div class="summary-row">
+          <div class="sum-chip">Give: <strong id="sc-give-silver" style="color:var(--silver)">—</strong></div>
+          <div class="sum-arrow">→</div>
+          <div class="sum-chip">Get: <strong id="sc-want-silver" style="color:var(--silver)">—</strong></div>
+        </div>
+      </div>
+      <div class="post-row"><button class="post-btn silver-btn" id="pb-silver" disabled onclick="doPost('silver')">⚡ Post to Board</button></div>
+    </div>
+
+    <!-- BLUE -->
+    <div class="type-content" id="tc-blue">
+      <div class="select-layout">
+        <div class="sel-panel blue-acc">
+          <div class="sel-title" style="color:var(--blue)"><span class="sel-dot" style="background:var(--blue);box-shadow:0 0 5px var(--blue)"></span>Card I Want (pick 1)</div>
+          <div class="card-grid" id="want-blue"></div>
+        </div>
+        <div class="sel-panel blue-acc">
+          <div class="sel-title" style="color:var(--blue)"><span class="sel-dot" style="background:var(--blue);box-shadow:0 0 5px var(--blue)"></span>Cards I'll Give (1–3)</div>
+          <div class="card-grid" id="give-blue"></div>
+        </div>
+      </div>
+      <div class="give-config">
+        <div class="give-row">
+          <span class="give-lbl">Cards to give:</span>
+          <button class="qty-btn active" id="qb-blue-1" onclick="setQty('blue',1)" style="color:var(--blue)">1</button>
+          <button class="qty-btn" id="qb-blue-2" onclick="setQty('blue',2)" style="color:var(--blue)">2</button>
+          <button class="qty-btn" id="qb-blue-3" onclick="setQty('blue',3)" style="color:var(--blue)">3</button>
+        </div>
+        <div class="slots-row" id="slots-blue"></div>
+        <div class="summary-row">
+          <div class="sum-chip">Give: <strong id="sc-give-blue" style="color:var(--blue)">—</strong></div>
+          <div class="sum-arrow">→</div>
+          <div class="sum-chip">Get: <strong id="sc-want-blue" style="color:var(--blue)">—</strong></div>
+        </div>
+      </div>
+      <div class="post-row"><button class="post-btn blue-btn" id="pb-blue" disabled onclick="doPost('blue')">⚡ Post to Board</button></div>
+    </div>
+  </div>
+
+  <!-- PAGE: LIVE BOARD -->
+  <div class="page" id="page-board">
+    <div class="page-header">
+      <div class="page-badge">📋 Live Board</div>
+      <div class="page-title">Open Exchanges</div>
+      <div class="page-sub">Accept any trade · meet in-game · swap cards</div>
+      <div class="hdivider"><span>◆</span></div>
+    </div>
+    <div class="board-filters">
+      <button class="filter-btn active" onclick="filterBoard(this,'all')">All</button>
+      <button class="filter-btn f-gold" onclick="filterBoard(this,'gold')">🥇 Gold</button>
+      <button class="filter-btn f-silver" onclick="filterBoard(this,'silver')">🥈 Silver</button>
+      <button class="filter-btn f-blue" onclick="filterBoard(this,'blue')">💠 Blue</button>
+    </div>
+    <div class="board-hdr">
+      <div class="board-count" id="board-count">Loading...</div>
+      <button class="refresh-btn" onclick="refreshBoard(this)"><span class="ri">↻</span> Refresh</button>
+    </div>
+    <div class="board-grid" id="board-grid">
+      <div class="board-empty"><div class="bei">⏳</div><p>Loading...</p></div>
+    </div>
+  </div>
+
+  <div class="sponsor-footer">
+    BGMI SWAP · Sponsored by <span class="sn">Vijay Kumar</span> · All exchanges are peer-to-peer in-game trades
+  </div>
+</div>
+
+<!-- MODAL: Posted -->
+<div class="overlay" id="modal-posted">
+  <div class="modal">
+    <div class="modal-bar" id="mpost-bar"></div>
+    <button class="modal-x" onclick="closeOv('modal-posted')">✕</button>
+    <div class="modal-icon">✅</div>
+    <div class="modal-title">Exchange Posted!</div>
+    <div class="modal-sub">Your trade is now live. Share your ID so the other player can find you in-game.</div>
+    <div class="exid-box" id="post-exid-box">
+      <div class="exid-lbl">Your Exchange ID</div>
+      <div class="exid-val" id="post-exid-val">—</div>
+      <div class="exid-copy" onclick="copyExId()">📋 Tap to Copy</div>
+    </div>
+    <button class="modal-btn" id="mpost-go-btn" onclick="gotoBoard()">View Live Board →</button>
+  </div>
+</div>
+
+<!-- MODAL: Accept -->
+<div class="overlay" id="modal-accept">
+  <div class="modal">
+    <div class="modal-bar" id="macc-bar"></div>
+    <button class="modal-x" onclick="closeOv('modal-accept')">✕</button>
+    <div class="modal-icon">🤝</div>
+    <div class="modal-title">Accept Exchange</div>
+    <div class="modal-sub" id="macc-sub">Find the poster in BGMI using the ID below and complete the card swap.</div>
+    <div id="daily-warn-box" class="daily-warn" style="display:none">⚠️ You have already redeemed today. Come back tomorrow!</div>
+    <div style="text-align:center;padding:8px 0 4px">
+      <div style="font-size:9px;letter-spacing:3px;color:var(--dim2);text-transform:uppercase;margin-bottom:6px">Poster's Exchange ID</div>
+      <span class="big-id" id="macc-exid">—</span>
+      <div style="font-size:11px;color:var(--dim2);margin-bottom:14px">Find this player in BGMI lobby to complete the swap.</div>
+    </div>
+    <button class="modal-btn" id="macc-ok-btn" onclick="confirmAccept()">✓ Done — Remove Listing</button>
+    <button class="modal-btn modal-btn-out" onclick="closeOv('modal-accept')">Cancel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══ SUPABASE INIT ══ */
+const SURL = 'https://nndaugkebojhrgxzlidh.supabase.co';
+const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uZGF1Z2tlYm9qaHJneHpsaWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczOTYwMDksImV4cCI6MjA5Mjk3MjAwOX0.GCCzRveI-mfOiAdVfB1L76aadI_Fp_oafSoH1Y8DniI';
+const sb = supabase.createClient(SURL, SKEY);
+
+/* ══ BACKGROUND CANVAS ══ */
+(function(){
+  const c=document.getElementById('bg-canvas'),ctx=c.getContext('2d');
+  let W,H,pts=[];
+  function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;init();}
+  function init(){
+    pts=[];const n=Math.floor(W*H/20000);
+    for(let i=0;i<n;i++) pts.push({
+      x:Math.random()*W,y:Math.random()*H,
+      vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,
+      r:Math.random()*1.4+.4,
+      col:['rgba(255,215,0,','rgba(0,212,255,','rgba(255,107,0,'][Math.floor(Math.random()*3)]
+    });
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=p.col+'0.55)';ctx.fill();
+    });
+    for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
+      const dx=pts[i].x-pts[j].x,dy=pts[i].y-pts[j].y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<110){ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[j].x,pts[j].y);
+        ctx.strokeStyle=`rgba(255,215,0,${.07*(1-d/110)})`;ctx.lineWidth=.5;ctx.stroke();}
+    }
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize',resize);resize();draw();
+})();
+
+/* ══ CARD DATA ══ */
+const CARDS={
+  gold:[
+    {id:'g1',name:'M416',icon:'🔫',sub:'Assault'},{id:'g2',name:'AWM',icon:'🎯',sub:'Sniper'},
+    {id:'g3',name:'Kar98k',icon:'💥',sub:'Sniper'},{id:'g4',name:'UMP45',icon:'⚡',sub:'SMG'},
+    {id:'g5',name:'Helmet',icon:'⛑️',sub:'Gear'},{id:'g6',name:'Armor',icon:'🛡️',sub:'Gear'},
+    {id:'g7',name:'Backpack',icon:'🎒',sub:'Gear'},{id:'g8',name:'Pan',icon:'🍳',sub:'Melee'},
+  ],
+  silver:[
+    {id:'s1',name:'M416',icon:'🔫',sub:'Assault'},{id:'s2',name:'SCAR-L',icon:'🎯',sub:'Assault'},
+    {id:'s3',name:'UZI',icon:'💥',sub:'SMG'},{id:'s4',name:'DP-28',icon:'⚡',sub:'LMG'},
+    {id:'s5',name:'Helmet',icon:'⛑️',sub:'Gear'},{id:'s6',name:'Armor',icon:'🛡️',sub:'Gear'},
+    {id:'s7',name:'Scope',icon:'🔭',sub:'Attach'},{id:'s8',name:'Backpack',icon:'🎒',sub:'Gear'},
+  ],
+  blue:[
+    {id:'b1',name:'M416',icon:'🔫',sub:'Assault'},{id:'b2',name:'AKM',icon:'🎯',sub:'Assault'},
+    {id:'b3',name:'M24',icon:'💥',sub:'Sniper'},{id:'b4',name:'Vector',icon:'⚡',sub:'SMG'},
+    {id:'b5',name:'Helmet',icon:'⛑️',sub:'Gear'},{id:'b6',name:'Vest',icon:'🛡️',sub:'Gear'},
+    {id:'b7',name:'Scope',icon:'🔭',sub:'Attach'},{id:'b8',name:'Pack',icon:'🎒',sub:'Gear'},
+  ]
+};
+
+/* ══ STATE ══ */
+const XS={gold:{want:null,give:[],qty:1},silver:{want:null,give:[],qty:1},blue:{want:null,give:[],qty:1}};
+let curType='gold',boardFilter='all',listings=[],pendingAccept=null,currentUser=null,currentProfile=null;
+
+/* ══ HELPERS ══ */
+function emailToUid(email){
+  const base=email.split('@')[0].toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
+  let h=0;for(let i=0;i<email.length;i++) h=(h*31+email.charCodeAt(i))&0xFFFF;
+  return base+'#'+h.toString(16).toUpperCase().padStart(4,'0');
+}
+function togglePw(id,btn){
+  const i=document.getElementById(id);
+  i.type=i.type==='password'?'text':'password';btn.textContent=i.type==='password'?'👁':'🙈';
+}
+function showOv(id){document.getElementById(id).classList.add('show')}
+function closeOv(id){document.getElementById(id).classList.remove('show')}
+function showToast(msg,dur=3000){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),dur);
+}
+function setScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function switchAuthTab(tab){
+  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',i===(tab==='login'?0:1)));
+  document.querySelectorAll('.auth-form').forEach((f,i)=>f.classList.toggle('active',i===(tab==='login'?0:1)));
+}
+
+/* ══ AUTH ══ */
+async function doSignup(){
+  const email=document.getElementById('signup-email').value.trim().toLowerCase();
+  const pw=document.getElementById('signup-pw').value;
+  const pw2=document.getElementById('signup-pw2').value;
+  const errEl=document.getElementById('signup-error');
+  const okEl=document.getElementById('signup-success');
+  errEl.classList.remove('show');okEl.classList.remove('show');
+  if(!email||!email.includes('@')){errEl.textContent='Please enter a valid email.';errEl.classList.add('show');return;}
+  if(pw.length<6){errEl.textContent='Password must be at least 6 characters.';errEl.classList.add('show');return;}
+  if(pw!==pw2){errEl.textContent='Passwords do not match.';errEl.classList.add('show');return;}
+  const btn=document.getElementById('signup-btn');btn.disabled=true;btn.textContent='Creating...';
+  const {data,error}=await sb.auth.signUp({email,password:pw});
+  btn.disabled=false;btn.textContent='Create Account →';
+  if(error){errEl.textContent=error.message;errEl.classList.add('show');return;}
+  // insert profile with exchange ID
+  const uid=emailToUid(email);
+  await sb.from('profiles').insert({id:data.user.id,exchange_id:uid,email});
+  okEl.textContent=`Account created! Your Exchange ID is: ${uid}. Please check your email to verify, then login.`;
+  okEl.classList.add('show');
+}
+
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim().toLowerCase();
+  const pw=document.getElementById('login-pw').value;
+  const errEl=document.getElementById('login-error');
+  errEl.classList.remove('show');
+  if(!email||!email.includes('@')){errEl.textContent='Please enter a valid email.';errEl.classList.add('show');return;}
+  if(!pw){errEl.textContent='Please enter your password.';errEl.classList.add('show');return;}
+  const btn=document.getElementById('login-btn');btn.disabled=true;btn.textContent='Logging in...';
+  const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
+  btn.disabled=false;btn.textContent='Enter Battleground →';
+  if(error){errEl.textContent=error.message;errEl.classList.add('show');return;}
+  await enterApp(data.user);
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  currentUser=null;currentProfile=null;
+  setScreen('screen-auth');
+}
+
+async function enterApp(user){
+  currentUser=user;
+  // fetch profile
+  const{data}=await sb.from('profiles').select('*').eq('id',user.id).single();
+  currentProfile=data;
+  document.getElementById('uid-display').textContent=currentProfile.exchange_id;
+  document.getElementById('uid-email-display').textContent=currentProfile.email;
+  document.getElementById('nav-uid-display').textContent=currentProfile.exchange_id;
+  await updateDailyPill();
+  setScreen('screen-app');
+  renderAll();
+  await refreshBoard(null);
+}
+
+/* ══ DAILY LIMIT ══ */
+async function checkCanRedeem(){
+  const today=new Date().toISOString().slice(0,10);
+  const{data}=await sb.from('redeems').select('redeem_date').eq('user_id',currentUser.id).single();
+  return !data||data.redeem_date!==today;
+}
+async function updateDailyPill(){
+  const ok=await checkCanRedeem();
+  const pill=document.getElementById('daily-pill');
+  pill.className='daily-pill '+(ok?'ok':'used');
+  pill.textContent=ok?'✓ Redeem Available':'✗ Redeemed Today';
+}
+
+/* ══ PAGES ══ */
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const tabs=document.querySelectorAll('.nav-tab');
+  if(name==='exchange') tabs[0].classList.add('active');
+  else{tabs[1].classList.add('active');refreshBoard(null);}
+}
+function switchType(type){
+  curType=type;
+  document.querySelectorAll('.type-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('.type-tab.'+type).classList.add('active');
+  document.querySelectorAll('.type-content').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tc-'+type).classList.add('active');
+}
+
+/* ══ CARD RENDERING ══ */
+function renderAll(){
+  ['gold','silver','blue'].forEach(type=>{
+    const wEl=document.getElementById('want-'+type),gEl=document.getElementById('give-'+type);
+    wEl.innerHTML='';gEl.innerHTML='';
+    CARDS[type].forEach(c=>{wEl.appendChild(mkCard(c,type,'want'));gEl.appendChild(mkCard(c,type,'give'));});
+    renderSlots(type);updateSummary(type);
+  });
+}
+function mkCard(c,type,role){
+  const d=document.createElement('div');
+  d.className=`card-item ${type}-card`;
+  d.innerHTML=`<div class="card-bg"></div><div class="card-icon">${c.icon}</div>
+    <div class="card-name">${c.name}<br><small style="opacity:.45;font-size:7px">${c.sub}</small></div>
+    <div class="card-check">✓</div>`;
+  d.onclick=()=>role==='want'?selWant(type,c,d):selGive(type,c,d);
+  return d;
+}
+function selWant(type,c,el){
+  document.querySelectorAll('#want-'+type+' .card-item').forEach(x=>x.classList.remove('selected'));
+  el.classList.add('selected');XS[type].want=c;updateSummary(type);
+}
+function selGive(type,c,el){
+  const s=XS[type],idx=s.give.findIndex(x=>x.id===c.id);
+  if(idx>=0){s.give.splice(idx,1);el.classList.remove('selected');}
+  else{
+    if(s.give.length>=s.qty){
+      s.give.shift();
+      document.querySelectorAll('#give-'+type+' .card-item.selected').forEach((x,i)=>{if(i===0)x.classList.remove('selected');});
+    }
+    s.give.push(c);el.classList.add('selected');
+  }
+  renderSlots(type);updateSummary(type);
+}
+function setQty(type,qty){
+  XS[type].qty=qty;
+  while(XS[type].give.length>qty){
+    XS[type].give.pop();
+    const sel=document.querySelectorAll('#give-'+type+' .card-item.selected');
+    if(sel.length>qty) sel[sel.length-1].classList.remove('selected');
+  }
+  [1,2,3].forEach(n=>{
+    const b=document.getElementById('qb-'+type+'-'+n);
+    b.classList.toggle('active',n===qty);b.style.borderColor=n===qty?'var(--'+type+')':'';
+  });
+  renderSlots(type);updateSummary(type);
+}
+function renderSlots(type){
+  const s=XS[type],c=document.getElementById('slots-'+type);
+  c.innerHTML='';
+  for(let i=0;i<s.qty;i++){
+    const slot=document.createElement('div');slot.className='give-slot';
+    const card=s.give[i];
+    if(card){
+      slot.classList.add('filled');slot.style.borderColor='var(--'+type+')';
+      slot.innerHTML=`<div class="si">${card.icon}</div>
+        <div class="sn" style="color:var(--${type})">${card.name}</div>
+        <div class="sr" onclick="remGive('${type}',${i})">✕</div>`;
+    }else{
+      slot.innerHTML=`<div style="font-size:20px;opacity:.2">+</div>
+        <div style="font-size:8px;opacity:.2;letter-spacing:1px;margin-top:4px">SLOT ${i+1}</div>`;
+    }
+    c.appendChild(slot);
+  }
+}
+function remGive(type,idx){XS[type].give.splice(idx,1);renderAll();}
+function updateSummary(type){
+  const s=XS[type];
+  document.getElementById('sc-give-'+type).textContent=s.give.length?s.give.length+' card'+(s.give.length>1?'s':''):'—';
+  document.getElementById('sc-want-'+type).textContent=s.want?s.want.name:'—';
+  document.getElementById('pb-'+type).disabled=!(s.want&&s.give.length===s.qty);
+}
+
+/* ══ POST EXCHANGE ══ */
+async function doPost(type){
+  if(!currentUser||!currentProfile)return;
+  const s=XS[type];if(!s.want||s.give.length!==s.qty)return;
+  const btn=document.getElementById('pb-'+type);
+  btn.disabled=true;btn.textContent='Posting...';
+  const{error}=await sb.from('listings').insert({
+    user_id:currentUser.id,
+    exchange_id:currentProfile.exchange_id,
+    type,
+    want:s.want,
+    give:s.give,
+    qty:s.qty
+  });
+  btn.textContent='⚡ Post to Board';
+  if(error){showToast('❌ Error posting: '+error.message);btn.disabled=false;return;}
+  const col={gold:'var(--gold)',silver:'var(--silver)',blue:'var(--blue)'}[type];
+  document.getElementById('mpost-bar').style.background=`linear-gradient(90deg,transparent,${col},transparent)`;
+  document.getElementById('post-exid-val').textContent=currentProfile.exchange_id;
+  document.getElementById('post-exid-val').style.color=col;
+  document.getElementById('post-exid-box').style.borderColor=col;
+  document.getElementById('mpost-go-btn').className='modal-btn '+type+'-btn';
+  showOv('modal-posted');
+  XS[type]={want:null,give:[],qty:1};renderAll();
+}
+function gotoBoard(){closeOv('modal-posted');showPage('board');}
+function copyExId(){
+  try{navigator.clipboard.writeText(document.getElementById('post-exid-val').textContent);}catch{}
+  showToast('📋 Exchange ID copied!');
+}
+
+/* ══ BOARD ══ */
+async function refreshBoard(btn){
+  if(btn){const ri=btn.querySelector('.ri');ri.classList.add('spin-me');setTimeout(()=>ri.classList.remove('spin-me'),600);}
+  let q=sb.from('listings').select('*').order('created_at',{ascending:false});
+  if(boardFilter!=='all') q=q.eq('type',boardFilter);
+  const{data,error}=await q;
+  if(error){showToast('❌ Error loading board');return;}
+  listings=data||[];renderBoard();
+}
+function filterBoard(el,f){
+  boardFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');refreshBoard(null);
+}
+function renderBoard(){
+  const grid=document.getElementById('board-grid');
+  document.getElementById('board-count').textContent=listings.length+' open exchange'+(listings.length!==1?'s':'');
+  if(!listings.length){
+    grid.innerHTML='<div class="board-empty"><div class="bei">📭</div><p>No exchanges yet — be the first to post!</p></div>';return;
+  }
+  grid.innerHTML='';
+  listings.forEach((l,i)=>grid.appendChild(mkListing(l,i)));
+}
+function mkListing(l,i){
+  const isOwn=currentUser&&l.user_id===currentUser.id;
+  const labels={gold:'Gold Exchange',silver:'Silver Exchange',blue:'Blue Exchange'};
+  const giveHtml=(l.give||[]).map(g=>`<div class="mini-card"><div class="mi">${g.icon}</div><div class="mn">${g.name}</div></div>`).join('');
+  const d=document.createElement('div');d.className='listing '+l.type+'-listing';
+  const elapsed=timeAgo(l.created_at);
+  d.innerHTML=`<div class="listing-top"></div>
+    <div class="listing-body">
+      <div class="listing-header">
+        <span class="listing-type-lbl">${labels[l.type]}</span>
+        <span class="lbadge">${l.type.toUpperCase()}</span>
+      </div>
+      <div class="listing-cards">${giveHtml}<div class="swap-arr">⇄</div>
+        <div class="mini-card"><div class="mi">${l.want.icon}</div><div class="mn">${l.want.name}</div></div>
+      </div>
+      <div class="listing-meta">Offering ${l.qty} card${l.qty>1?'s':''} for <strong style="color:var(--${l.type})">${l.want.name}</strong></div>
+      <div class="listing-poster">Posted by: <strong>${l.exchange_id}</strong></div>
+      <div class="listing-footer">
+        <div class="listing-id">ID: ${l.exchange_id}</div>
+        <div class="listing-time">${elapsed}</div>
+      </div>
+      ${isOwn
+        ?`<div class="own-listing-badge">📌 Your Listing</div>`
+        :`<button class="accept-btn" onclick="openAccept(${i})">Accept Exchange →</button>`
+      }
+    </div>`;
+  return d;
+}
+function timeAgo(ts){
+  const s=Math.floor((Date.now()-new Date(ts).getTime())/1000);
+  if(s<60)return 'Just now';if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';
+}
+
+/* ══ ACCEPT FLOW ══ */
+async function openAccept(idx){
+  const l=listings[idx];if(!l||!currentUser)return;
+  pendingAccept=l;
+  const col={gold:'var(--gold)',silver:'var(--silver)',blue:'var(--blue)'}[l.type];
+  document.getElementById('macc-bar').style.background=`linear-gradient(90deg,transparent,${col},transparent)`;
+  document.getElementById('macc-exid').textContent=l.exchange_id;
+  document.getElementById('macc-exid').style.color=col;
+  document.getElementById('macc-sub').textContent=`Trade: ${(l.give||[]).map(g=>g.name).join(', ')} → ${l.want.name}. Find "${l.exchange_id}" in the BGMI lobby.`;
+  document.getElementById('macc-ok-btn').className='modal-btn '+l.type+'-btn';
+  const ok=await checkCanRedeem();
+  document.getElementById('daily-warn-box').style.display=ok?'none':'block';
+  document.getElementById('macc-ok-btn').disabled=!ok;
+  showOv('modal-accept');
+}
+async function confirmAccept(){
+  if(!pendingAccept)return;
+  const ok=await checkCanRedeem();
+  if(!ok){showToast('⚠️ Daily redeem limit reached. Try tomorrow!');return;}
+  // delete listing
+  await sb.from('listings').delete().eq('id',pendingAccept.id);
+  // upsert redeem record
+  const today=new Date().toISOString().slice(0,10);
+  await sb.from('redeems').upsert({user_id:currentUser.id,redeem_date:today},{onConflict:'user_id'});
+  await updateDailyPill();
+  closeOv('modal-accept');
+  await refreshBoard(null);
+  showToast('✅ Done! Find '+pendingAccept.exchange_id+' in BGMI to swap cards.');
+  pendingAccept=null;
+}
+
+/* ══ SESSION CHECK ON LOAD ══ */
+async function init(){
+  const{data:{session}}=await sb.auth.getSession();
+  if(session){
+    await enterApp(session.user);
+  } else {
+    setScreen('screen-auth');
+  }
+  // listen for auth changes
+  sb.auth.onAuthStateChange(async(event,session)=>{
+    if(event==='SIGNED_IN'&&session) await enterApp(session.user);
+    if(event==='SIGNED_OUT') setScreen('screen-auth');
+  });
+}
+
+/* ══ KEYBOARD ══ */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    const lf=document.getElementById('form-login'),sf=document.getElementById('form-signup');
+    if(lf.classList.contains('active')&&['login-email','login-pw'].includes(document.activeElement.id)) doLogin();
+    if(sf.classList.contains('active')&&['signup-email','signup-pw','signup-pw2'].includes(document.activeElement.id)) doSignup();
+  }
+  if(e.key==='Escape') document.querySelectorAll('.overlay.show').forEach(o=>o.classList.remove('show'));
+});
+
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('show');}));
+
+init();
+</script>
+</body>
+</html>
